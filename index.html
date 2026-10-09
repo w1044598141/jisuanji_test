@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云盘Excel读取测试</title>
+    <!-- 飞书H5 JSSDK -->
+    <script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.48.js"></script>
+    <!-- SheetJS 前端解析Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { padding: 20px; font-family: system-ui; }
+        button { padding:10px 20px; font-size:16px; cursor:pointer; }
+        #tableBox { margin-top:20px; }
+        table { border-collapse: collapse; width:100%; }
+        td,th { border:1px solid #ccc; padding:6px; }
+    </style>
+</head>
+<body>
+    <button id="pickFileBtn">选择云盘Excel文件</button>
+    <div id="tableBox"></div>
+
+<script>
+// ==========【这里改成你的AppID！！】==========
+const APP_ID = "cli_aa4225473a781bfb";
+// ==========================================
+
+// JSSDK初始化鉴权
+h5sdk.config({
+    appId: APP_ID,
+    onSuccess: function() {
+        console.log("✅ JSSDK鉴权成功，可以调用飞书能力");
+    },
+    onFail: function(err) {
+        console.error("❌ JSSDK鉴权失败", err);
+        alert("JSSDK鉴权失败，请检查可信域名和AppID配置");
+    }
+})
+
+document.getElementById('pickFileBtn').onclick = async function(){
+    try {
+        // 唤起飞书云盘选择器，只允许xlsx
+        const pickRes = await tt.docsPicker({
+            selectType: 'file',
+            fileType: ['xlsx']
+        });
+        console.log("选中文件信息", pickRes);
+        const fileToken = pickRes.files[0].token;
+
+        // 获取文件临时下载链接
+        const urlRes = await tt.docs.getFileDownloadUrl({
+            fileToken: fileToken
+        })
+        const downloadUrl = urlRes.downloadUrl;
+
+        // 下载并且解析Excel
+        const resp = await fetch(downloadUrl);
+        const buf = await resp.arrayBuffer();
+        const workbook = XLSX.read(buf, {type:"array"});
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+        // 渲染HTML表格
+        renderTable(jsonData);
+    } catch(e){
+        console.error("读取失败", e);
+        alert("操作失败："+e.message)
+    }
+}
+
+// 将json数据渲染成表格
+function renderTable(data){
+    if(!data || data.length ===0){
+        document.getElementById("tableBox").innerText = "表格为空";
+        return;
+    }
+    const keys = Object.keys(data[0]);
+    let html = "<table><thead><tr>";
+    keys.forEach(k=> html += `<th>${k}</th>`);
+    html += "</tr></thead><tbody>";
+    data.forEach(row=>{
+        html += "<tr>";
+        keys.forEach(k=> html += `<td>${row[k]??""}</td>`);
+        html += "</tr>";
+    })
+    html += "</tbody></table>";
+    document.getElementById("tableBox").innerHTML = html;
+}
+</script>
+</body>
+</html>
